@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Data Analyst Chatbot{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-content">
+        <h1>AI Data Analyst</h1>
+        <p>Powerful data analysis and visualization at your fingertips</p>
+        
+        {% if user.is_authenticated %}
+            <div class="hero-actions">
+                <a href="{% url 'chat' %}" class="btn btn-primary">Start Chatting</a>
+                <a href="{% url 'dashboard' %}" class="btn btn-secondary">View Dashboard</a>
+            </div>
+        {% else %}
+            <div class="hero-actions">
+                <a href="{% url 'login' %}" class="btn btn-primary">Get Started</a>
+                <a href="{% url 'register' %}" class="btn btn-secondary">Sign Up</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="features-section">
+    <div class="container">
+        <h2>Features</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <h3>AI Chat Assistant</h3>
+                <p>Ask questions about your data using natural language and get instant insights</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Interactive Dashboard</h3>
+                <p>Upload CSV files and create beautiful, interactive charts and visualizations</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔍</div>
+                <h3>Data Analysis</h3>
+                <p>Explore your data with advanced filtering, sorting, and statistical analysis</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

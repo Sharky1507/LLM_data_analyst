@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat - Data Analyst Chatbot{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <div class="chat-header">
+        <h2>AI Data Analyst</h2>
+        <p>Ask questions about your data and get instant insights</p>
+    </div>
+    
+    <div class="chat-iframe-container">
+        <iframe 
+            id="chatbot-frame"
+            src="http://localhost:8002" 
+            frameborder="0"
+            allow="microphone; camera"
+            title="AI Data Analyst Chatbot">
+            <p>Your browser does not support iframes. Please update your browser to use the chatbot.</p>
+        </iframe>
+    </div>
+    
+    <div class="chat-status" id="chat-status">
+        <span class="status-indicator"></span>
+        <span class="status-text">Connecting to chatbot...</span>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const iframe = document.getElementById('chatbot-frame');
+    const statusIndicator = document.querySelector('.status-indicator');
+    const statusText = document.querySelector('.status-text');
+    
+    // Check if iframe loads successfully
+    iframe.onload = function() {
+        statusIndicator.classList.add('connected');
+        statusText.textContent = 'Connected';
+    };
+    
+    iframe.onerror = function() {
+        statusIndicator.classList.add('error');
+        statusText.textContent = 'Connection failed - Please ensure chatbot server is running';
+    };
+    
+    // Timeout check
+    setTimeout(function() {
+        if (!statusIndicator.classList.contains('connected')) {
+            statusIndicator.classList.add('error');
+            statusText.textContent = 'Connection timeout - Please check if chatbot server is running on port 8002';
+        }
+    }, 10000);
+});
+</script>
+{% endblock %}

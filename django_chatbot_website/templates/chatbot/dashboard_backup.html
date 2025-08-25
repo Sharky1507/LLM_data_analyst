@@ -1,0 +1,516 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Data Analyst{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h2>Data Analysis Dashboard</h2>
+        <p>Upload datasets and create interactive visualizations</p>
+    </div>
+
+    <!-- File Upload Section -->
+    <div class="upload-section">
+        <div class="section-header">
+            <h3>Upload Dataset</h3>
+            <p>Upload a CSV or Excel file to start analyzing your data</p>
+        </div>
+        
+        <div class="upload-area" id="upload-area">
+            <div class="upload-content">
+                <div class="upload-icon">📊</div>
+                <p>Drag and drop your CSV or Excel file here or click to browse</p>
+                <input type="file" id="file-input" accept=".csv,.xlsx,.xls" style="display: none;">
+                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                    Choose File
+                </button>
+            </div>
+        </div>
+        
+        <div class="upload-progress" id="upload-progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-text">Uploading...</p>
+        </div>
+    </div>
+
+    <!-- Dataset Management Section -->
+    <div class="datasets-section">
+        <div class="section-header">
+            <h3>Your Datasets</h3>
+            <p>Manage and analyze your uploaded datasets</p>
+        </div>
+        
+        <div class="datasets-grid" id="datasets-grid">
+            {% for file in uploaded_files %}
+            <div class="dataset-card" data-filename="{{ file }}">
+                <div class="dataset-icon">📋</div>
+                <h4>{{ file }}</h4>
+                <div class="dataset-actions">
+                    <button class="btn btn-secondary" onclick="viewDataset('{{ file }}')">View Data</button>
+                    <button class="btn btn-primary" onclick="createChart('{{ file }}')">Create Chart</button>
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state">
+                <p>No datasets uploaded yet. Upload a CSV file to get started.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Chart Creation Section -->
+    <div class="chart-section" id="chart-section" style="display: none;">
+        <div class="section-header">
+            <h3>Create Visualization</h3>
+            <p>Select chart type and columns to visualize your data</p>
+        </div>
+        
+        <div class="chart-controls">
+            <div class="control-group">
+                <label>Chart Type:</label>
+                <select id="chart-type" class="form-control">
+                    <option value="bar">Bar Chart</option>
+                    <option value="line">Line Chart</option>
+                    <option value="scatter">Scatter Plot</option>
+                    <option value="pie">Pie Chart</option>
+                    <option value="histogram">Histogram</option>
+                    <option value="box">Box Plot</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>X-Axis:</label>
+                <select id="x-column" class="form-control">
+                    <option value="">Select column...</option>
+                </select>
+            </div>
+            
+            <div class="control-group" id="y-column-group">
+                <label>Y-Axis:</label>
+                <select id="y-column" class="form-control">
+                    <option value="">Select column...</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Color By (Optional):</label>
+                <select id="color-column" class="form-control">
+                    <option value="">None</option>
+                </select>
+            </div>
+            
+            <div class="control-actions">
+                <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
+                <button class="btn btn-secondary" onclick="closeChartSection()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Display Section -->
+    <div class="chart-display" id="chart-display" style="display: none;">
+        <div class="section-header">
+            <h3>Generated Chart</h3>
+            <div class="chart-actions">
+                <button class="btn btn-secondary" onclick="saveChart()">Save Chart</button>
+                <button class="btn btn-secondary" onclick="downloadChart()">Download</button>
+            </div>
+        </div>
+        <div id="chart-container"></div>
+    </div>
+
+    <!-- Data Viewer Modal -->
+    <div class="modal" id="data-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Dataset View</h3>
+                <button class="modal-close" onclick="closeDataModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="dataset-summary" id="dataset-summary"></div>
+                <div class="data-table-container">
+                    <table class="data-table" id="data-table">
+                        <thead id="table-head"></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+let currentDataset = null;
+let currentDatasetInfo = null;
+
+// File upload handling
+document.getElementById('file-input').addEventListener('change', handleFileUpload);
+
+// Drag and drop handling
+const uploadArea = document.getElementById('upload-area');
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('drag-over');
+});
+
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('drag-over');
+});
+
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        handleFileUpload({target: {files: files}});
+    }
+});
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const allowedExtensions = ['.csv', '.xlsx', '.xls'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+        alert('Please upload a CSV or Excel file');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('dataset', file);
+    
+    showUploadProgress();
+    
+    fetch('{% url "upload_dataset" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideUploadProgress();
+        if (data.success) {
+            showNotification(data.message, 'success');
+            addDatasetToGrid(data.dataset_info);
+        } else {
+            showNotification(data.error || 'Upload failed', 'error');
+        }
+    })
+    .catch(error => {
+        hideUploadProgress();
+        showNotification('Upload failed: ' + error.message, 'error');
+    });
+}
+
+function showUploadProgress() {
+    document.getElementById('upload-progress').style.display = 'block';
+    // Simulate progress for demo purposes
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += 10;
+        document.getElementById('progress-fill').style.width = progress + '%';
+        if (progress >= 100) {
+            clearInterval(interval);
+        }
+    }, 100);
+}
+
+function hideUploadProgress() {
+    setTimeout(() => {
+        document.getElementById('upload-progress').style.display = 'none';
+        document.getElementById('progress-fill').style.width = '0%';
+    }, 500);
+}
+
+function addDatasetToGrid(datasetInfo) {
+    const grid = document.getElementById('datasets-grid');
+    const emptyState = grid.querySelector('.empty-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    const card = document.createElement('div');
+    card.className = 'dataset-card';
+    card.setAttribute('data-filename', datasetInfo.filename);
+    card.innerHTML = `
+        <div class="dataset-icon">📋</div>
+        <h4>${datasetInfo.filename}</h4>
+        <p>${datasetInfo.rows} rows, ${datasetInfo.columns} columns</p>
+        <div class="dataset-actions">
+            <button class="btn btn-secondary" onclick="viewDataset('${datasetInfo.filename}')">View Data</button>
+            <button class="btn btn-primary" onclick="createChart('${datasetInfo.filename}')">Create Chart</button>
+        </div>
+    `;
+    grid.appendChild(card);
+}
+
+function viewDataset(filename) {
+    fetch('{% url "dataset_info" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({filename: filename})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showDataModal(data.dataset_info);
+        } else {
+            showNotification(data.error || 'Failed to load dataset', 'error');
+        }
+    });
+}
+
+function showDataModal(datasetInfo) {
+    document.getElementById('modal-title').textContent = datasetInfo.filename;
+    
+    // Show summary
+    const summary = document.getElementById('dataset-summary');
+    summary.innerHTML = `
+        <div class="summary-stats">
+            <div class="stat-item">
+                <span class="stat-label">Rows:</span>
+                <span class="stat-value">${datasetInfo.rows}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Columns:</span>
+                <span class="stat-value">${datasetInfo.columns}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Numeric Columns:</span>
+                <span class="stat-value">${datasetInfo.numeric_columns.length}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Categorical Columns:</span>
+                <span class="stat-value">${datasetInfo.categorical_columns.length}</span>
+            </div>
+        </div>
+    `;
+    
+    // Show data table
+    const tableHead = document.getElementById('table-head');
+    const tableBody = document.getElementById('table-body');
+    
+    // Clear previous content
+    tableHead.innerHTML = '';
+    tableBody.innerHTML = '';
+    
+    // Create header
+    const headerRow = document.createElement('tr');
+    datasetInfo.column_names.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col;
+        headerRow.appendChild(th);
+    });
+    tableHead.appendChild(headerRow);
+    
+    // Create data rows
+    datasetInfo.sample_data.slice(0, 10).forEach(row => {
+        const tr = document.createElement('tr');
+        datasetInfo.column_names.forEach(col => {
+            const td = document.createElement('td');
+            td.textContent = row[col] || '';
+            tr.appendChild(td);
+        });
+        tableBody.appendChild(tr);
+    });
+    
+    document.getElementById('data-modal').style.display = 'block';
+}
+
+function closeDataModal() {
+    document.getElementById('data-modal').style.display = 'none';
+}
+
+function createChart(filename) {
+    currentDataset = filename;
+    
+    // Get dataset info to populate column options
+    fetch('{% url "dataset_info" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({filename: filename})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            currentDatasetInfo = data.dataset_info;
+            populateColumnOptions(data.dataset_info);
+            document.getElementById('chart-section').style.display = 'block';
+            document.getElementById('chart-section').scrollIntoView({behavior: 'smooth'});
+        } else {
+            showNotification(data.error || 'Failed to load dataset', 'error');
+        }
+    });
+}
+
+function populateColumnOptions(datasetInfo) {
+    const xColumn = document.getElementById('x-column');
+    const yColumn = document.getElementById('y-column');
+    const colorColumn = document.getElementById('color-column');
+    
+    // Clear existing options
+    [xColumn, yColumn, colorColumn].forEach(select => {
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+    });
+    
+    // Add column options
+    datasetInfo.column_names.forEach(col => {
+        [xColumn, yColumn, colorColumn].forEach(select => {
+            const option = document.createElement('option');
+            option.value = col;
+            option.textContent = col;
+            select.appendChild(option);
+        });
+    });
+    
+    // Update Y column visibility based on chart type
+    updateColumnVisibility();
+}
+
+function updateColumnVisibility() {
+    const chartType = document.getElementById('chart-type').value;
+    const yColumnGroup = document.getElementById('y-column-group');
+    
+    if (chartType === 'pie' || chartType === 'histogram') {
+        yColumnGroup.style.display = 'none';
+    } else {
+        yColumnGroup.style.display = 'block';
+    }
+}
+
+document.getElementById('chart-type').addEventListener('change', updateColumnVisibility);
+
+function generateChart() {
+    const chartType = document.getElementById('chart-type').value;
+    const xColumn = document.getElementById('x-column').value;
+    const yColumn = document.getElementById('y-column').value;
+    const colorColumn = document.getElementById('color-column').value;
+    
+    console.log('Generating chart:', { chartType, xColumn, yColumn, colorColumn });
+    
+    if (!xColumn) {
+        showNotification('Please select an X-axis column', 'error');
+        return;
+    }
+    
+    if ((chartType !== 'pie' && chartType !== 'histogram') && !yColumn) {
+        showNotification('Please select a Y-axis column', 'error');
+        return;
+    }
+    
+    const chartData = {
+        filename: currentDataset,
+        chart_type: chartType,
+        x_column: xColumn,
+        y_column: yColumn,
+        color_column: colorColumn || null
+    };
+    
+    console.log('Sending chart request:', chartData);
+    
+    fetch('{% url "create_chart" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(chartData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            displayChart(data.chart_json);
+        } else {
+            showNotification(data.error || 'Failed to create chart', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showNotification('Network error: ' + error.message, 'error');
+    });
+}
+
+function displayChart(chartJson) {
+    console.log('Chart JSON received:', chartJson);
+    const chartData = JSON.parse(chartJson);
+    console.log('Parsed chart data:', chartData);
+    
+    document.getElementById('chart-display').style.display = 'block';
+    
+    try {
+        Plotly.newPlot('chart-container', chartData.data, chartData.layout, {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+        });
+        console.log('Plotly chart created successfully');
+    } catch (error) {
+        console.error('Error creating Plotly chart:', error);
+        showNotification('Error creating chart: ' + error.message, 'error');
+    }
+    
+    document.getElementById('chart-display').scrollIntoView({behavior: 'smooth'});
+}
+
+function closeChartSection() {
+    document.getElementById('chart-section').style.display = 'none';
+    document.getElementById('chart-display').style.display = 'none';
+}
+
+function saveChart() {
+    showNotification('Chart saved successfully!', 'success');
+}
+
+function downloadChart() {
+    const chartContainer = document.getElementById('chart-container');
+    Plotly.downloadImage(chartContainer, {
+        format: 'png',
+        width: 1200,
+        height: 800,
+        filename: 'chart'
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showNotification(message, type = 'info') {
+    if (window.ChatbotUtils && window.ChatbotUtils.showNotification) {
+        window.ChatbotUtils.showNotification(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+{% endblock %}
