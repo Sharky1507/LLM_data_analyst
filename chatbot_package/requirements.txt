@@ -1,0 +1,10 @@
+chainlit==2.7.1.1
+groq>=0.4.0
+httpx>=0.25.0
+plotly>=5.15.0
+pandas>=2.0.0
+python-dotenv>=1.0.0
+matplotlib>=3.6.0
+seaborn>=0.11.0
+numpy>=1.24.0
+psycopg2-binary>=2.9.0
